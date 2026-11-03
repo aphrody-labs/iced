@@ -102,6 +102,9 @@ impl Compositor {
 
         log::info!("{settings:#?}");
 
+        // Only the Wayland path sets it; other targets (wasm32 in particular) have no process environment and
+        // `remove_var` panics there.
+        #[cfg(wayland_platform)]
         unsafe {
             std::env::remove_var("VK_LOADER_DRIVERS_DISABLE");
         }
