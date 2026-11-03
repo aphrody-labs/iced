@@ -221,6 +221,8 @@ where
         adapters: Default::default(),
 
         #[cfg(target_arch = "wasm32")]
+        is_booted: std::rc::Rc::new(std::cell::RefCell::new(false)),
+        #[cfg(target_arch = "wasm32")]
         canvas: None,
     };
 
@@ -426,9 +428,11 @@ where
 
                                 #[cfg(target_arch = "wasm32")]
                                 let window_attributes = {
-                                    use winit::platform::web::WindowAttributesExtWebSys;
-                                    window_attributes
-                                        .with_canvas(self.canvas.take())
+                                    use winit::platform::web::WindowAttributesWeb;
+                                    window_attributes.with_platform_attributes(Box::new(
+                                        WindowAttributesWeb::default()
+                                            .with_canvas(self.canvas.take()),
+                                    ))
                                 };
 
                                 log::info!(
@@ -456,7 +460,7 @@ where
 
                                 #[cfg(target_arch = "wasm32")]
                                 {
-                                    use winit::platform::web::WindowExtWebSys;
+                                    use winit::platform::web::WindowExtWeb;
 
                                     let canvas = window
                                         .canvas()
@@ -688,8 +692,8 @@ where
 
     #[cfg(target_arch = "wasm32")]
     {
-        use winit::platform::web::EventLoopExtWebSys;
-        let _ = event_loop.spawn_app(runner);
+        // winit 0.31: run_app registers the handler and returns to the browser event loop.
+        let _ = event_loop.run_app(runner);
 
         Ok(())
     }
@@ -1986,8 +1990,10 @@ where
         }
     };
 
+    // The browser has no blocking executor; awaiting the future in place keeps
+    // the borrowed runtime and compositor type free of a 'static bound.
     #[cfg(target_arch = "wasm32")]
-    wasm_bindgen_futures::spawn_local(create_compositor);
+    create_compositor.await;
 
     #[cfg(not(target_arch = "wasm32"))]
     runtime.block_on(create_compositor);
